@@ -13,6 +13,9 @@ RUN dnf -y install java-17-openjdk wget tar \
     && dnf clean all
 
 WORKDIR /opt
+# Set env vars so shell expands them
+ENV TOMCAT_MAJOR=${TOMCAT_MAJOR}
+ENV TOMCAT_VERSION=${TOMCAT_VERSION}
 
 # Download and extract Tomcat
 RUN wget https://downloads.apache.org/tomcat/tomcat-${TOMCAT_MAJOR}/v${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.tar.gz && \
