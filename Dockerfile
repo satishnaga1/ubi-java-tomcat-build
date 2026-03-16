@@ -8,6 +8,11 @@ FROM registry.access.redhat.com/ubi${UBI_VERSION}/ubi
 
 # Make JAVA_VERSION available in this stage
 #ENV JAVA_VERSION=${JAVA_VERSION}
+# Install Java 17 and tools
+RUN dnf -y module reset java && \
+    dnf -y module enable java-17 && \
+    dnf -y install java-17-openjdk wget tar && \
+    dnf clean all
 
 WORKDIR /opt
 
