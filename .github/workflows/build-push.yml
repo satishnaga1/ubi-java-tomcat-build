@@ -46,7 +46,7 @@ jobs:
             --build-arg JAVA_VERSION=${{ github.event.inputs.java_version }} \
             --build-arg TOMCAT_MAJOR=$TOMCAT_MAJOR \
             --build-arg TOMCAT_VERSION=$TOMCAT_VERSION \
-            -t ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest
+            -t ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest .
 
       - name: Push Docker Image
         run: |
