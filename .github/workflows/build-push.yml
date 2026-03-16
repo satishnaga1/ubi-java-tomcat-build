@@ -1,0 +1,53 @@
+name: Build and Push UBI Tomcat Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      ubi_version:
+        description: "UBI Version"
+        default: "9"
+      java_version:
+        description: "Java Version"
+        default: "17"
+      tomcat_major:
+        description: "Tomcat Major Version (9 or 10)"
+        default: "9"
+      image_name:
+        description: "Docker Image Name"
+        default: "ubi-tomcat"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Detect Latest Tomcat Version
+        run: |
+          MAJOR=${{ github.event.inputs.tomcat_major }}
+          VERSION=$(curl -s https://downloads.apache.org/tomcat/tomcat-$MAJOR/ | grep -oP 'v\K[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          echo "TOMCAT_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "TOMCAT_MAJOR=$MAJOR" >> $GITHUB_ENV
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build Docker Image
+        run: |
+          docker build \
+            --progress=plain \
+            --no-cache \
+            --build-arg UBI_VERSION=${{ github.event.inputs.ubi_version }} \
+            --build-arg JAVA_VERSION=${{ github.event.inputs.java_version }} \
+            --build-arg TOMCAT_MAJOR=$TOMCAT_MAJOR \
+            --build-arg TOMCAT_VERSION=$TOMCAT_VERSION \
+            -t ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest
+
+      - name: Push Docker Image
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest
