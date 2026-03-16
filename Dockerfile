@@ -10,8 +10,8 @@ RUN dnf install -y java-21-openjdk curl tar gzip && \
     dnf clean all
 
 # Set Java path
-ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk
-ENV PATH=$JAVA_HOME/bin:$CATALINA_HOME/bin:$PATH
+#ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk
+#ENV PATH=$JAVA_HOME/bin:$CATALINA_HOME/bin:$PATH
 
 # Install Tomcat
 RUN mkdir -p $CATALINA_HOME && \
