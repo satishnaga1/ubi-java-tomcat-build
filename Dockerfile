@@ -5,7 +5,9 @@ ARG TOMCAT_VERSION
 
 FROM registry.access.redhat.com/ubi${UBI_VERSION}/ubi
 
-RUN dnf install -y java-${JAVA_VERSION}-openjdk wget tar \
+# Enable Java module first, then install
+RUN dnf module enable -y java-${JAVA_VERSION} \
+ && dnf install -y java-${JAVA_VERSION}-openjdk wget tar \
  && dnf clean all
 
 WORKDIR /opt
