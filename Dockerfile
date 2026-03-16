@@ -1,14 +1,19 @@
-ARG UBI_VERSION
-ARG JAVA_VERSION
-ARG TOMCAT_MAJOR
-ARG TOMCAT_VERSION
+ARG UBI_VERSION=9
+ARG JAVA_VERSION=17
+ARG TOMCAT_MAJOR=9
+ARG TOMCAT_VERSION=9.0.115
 
 FROM registry.access.redhat.com/ubi${UBI_VERSION}/ubi
 
-# Enable Java module first, then install
-RUN dnf module enable -y java-${JAVA_VERSION} \
- && dnf install -y java-${JAVA_VERSION}-openjdk wget tar \
- && dnf clean all
+# Map JAVA_VERSION to module/package names
+RUN if [ "$JAVA_VERSION" = "11" ]; then \
+        dnf module enable -y java-11 && dnf install -y java-11-openjdk wget tar; \
+    elif [ "$JAVA_VERSION" = "17" ]; then \
+        dnf module enable -y java-17 && dnf install -y java-17-openjdk wget tar; \
+    else \
+        echo "Unsupported JAVA_VERSION: $JAVA_VERSION" && exit 1; \
+    fi \
+    && dnf clean all
 
 WORKDIR /opt
 
