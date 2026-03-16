@@ -6,9 +6,6 @@ on:
       ubi_version:
         description: "UBI Version"
         default: "9"
-      java_version:
-        description: "Java Version"
-        default: "17"
       tomcat_major:
         description: "Tomcat Major Version (9 or 10)"
         default: "9"
@@ -43,7 +40,6 @@ jobs:
             --progress=plain \
             --no-cache \
             --build-arg UBI_VERSION=${{ github.event.inputs.ubi_version }} \
-            --build-arg JAVA_VERSION=${{ github.event.inputs.java_version }} \
             --build-arg TOMCAT_MAJOR=$TOMCAT_MAJOR \
             --build-arg TOMCAT_VERSION=$TOMCAT_VERSION \
             -t ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest .
