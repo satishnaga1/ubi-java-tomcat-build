@@ -17,7 +17,7 @@ ENV TOMCAT_VERSION=$TOMCAT_VERSION
 # -------------------------------
 # Install Java 17 and basic tools
 # -------------------------------
-RUN dnf -y install java-17-openjdk wget tar && \
+RUN dnf -y install java-17-openjdk-headless wget tar && \
     dnf clean all
 
 # -------------------------------
