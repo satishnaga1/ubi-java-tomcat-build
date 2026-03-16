@@ -31,7 +31,7 @@ RUN wget https://downloads.apache.org/tomcat/tomcat-$TOMCAT_MAJOR/v$TOMCAT_VERSI
 # -------------------------------
 # Set working directory
 # -------------------------------
-WORKDIR /opt/
+WORKDIR /tomcat
 
 # Expose default Tomcat port
 EXPOSE 8080
