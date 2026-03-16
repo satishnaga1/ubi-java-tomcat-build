@@ -8,6 +8,8 @@ ENV CATALINA_HOME=/opt/tomcat
 ENV PATH=$CATALINA_HOME/bin:$PATH
 
 # Install required packages
+RUN dnf install -y java-21-openjdk curl tar gzip && \
+    dnf clean all
 #RUN dnf update -y && \
  #   if [ "$UBI_VERSION" = "10" ]; then \
  #       dnf install -y java-21-openjdk curl tar gzip; \
