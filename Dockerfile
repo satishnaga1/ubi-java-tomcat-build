@@ -9,7 +9,7 @@ ENV CATALINA_HOME=/opt/tomcat
 
 RUN dnf install -y \
     java-${JAVA_VERSION}-openjdk \
-    curl \
+    curl-minimal \
     tar \
     gzip && \
     dnf clean all
