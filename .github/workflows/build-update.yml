@@ -264,39 +264,75 @@ jobs:
           echo "Generated Image Tag:"
           echo "$IMAGE_TAG"
 
-      # ==========================================
-      # UPDATE BUILD IMAGES FILE
-      # ==========================================
-      - name: Update build-images.txt
-        run: |
-          FILE="configuration/tomcat/build-images.txt"
+     # ==========================================
+# UPDATE BUILD IMAGES FILE
+# ==========================================
+- name: Update build-images.txt
+  run: |
+    FILE="configuration/tomcat/build-images.txt"
 
-          mkdir -p configuration/tomcat
+    mkdir -p configuration/tomcat
+    touch $FILE
 
-          IMAGE_TAG="ubi${{ needs.detect-ubi.outputs.ubi_version }}-java${{ github.event.inputs.java_version }}-tomcat${{ github.event.inputs.tomcat_major }}"
+    IMAGE_TAG="ubi${{ needs.detect-ubi.outputs.ubi_version }}-java${{ github.event.inputs.java_version }}-tomcat${{ github.event.inputs.tomcat_major }}"
 
-          NEW_IMAGE="${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest"
+    NEW_IMAGE="${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest"
 
-          OLD_IMAGE=$(grep "Docker Image :" $FILE 2>/dev/null | tail -1 | sed 's/Docker Image : //')
+    # ==========================================
+    # GET OLD IMAGE
+    # ==========================================
+    OLD_IMAGE=$(awk -v tag="$IMAGE_TAG" '
+      $0 == tag {found=1}
+      found && /Docker Image :/ {
+        sub("Docker Image : ","")
+        print
+        exit
+      }
+    ' $FILE)
 
-          {
-            echo ""
-            echo "======================================"
-            echo "$IMAGE_TAG"
-            echo "Docker Image : $NEW_IMAGE"
+    # remove :latest from old image
+    OLD_IMAGE_NO_LATEST=$(echo "$OLD_IMAGE" | sed 's/:latest//')
 
-            if [ ! -z "$OLD_IMAGE" ]; then
-              echo "Docker old image : $OLD_IMAGE"
-            fi
+    # ==========================================
+    # REMOVE OLD ENTRY
+    # ==========================================
+    awk -v tag="$IMAGE_TAG" '
+      BEGIN {skip=0}
 
-            echo "Build Date : $(date)"
-            echo "======================================"
-            echo ""
-          } >> $FILE
+      $0 == tag {
+        skip=1
+        next
+      }
 
-          echo "Updated build-images.txt"
+      skip && /^======================================$/ {
+        skip=0
+        next
+      }
 
-          cat $FILE
+      !skip {print}
+    ' $FILE > temp.txt
+
+    mv temp.txt $FILE
+
+    # ==========================================
+    # ADD UPDATED ENTRY
+    # ==========================================
+    {
+      echo "======================================"
+      echo "$IMAGE_TAG"
+      echo "Docker Image : $NEW_IMAGE"
+
+      if [ ! -z "$OLD_IMAGE_NO_LATEST" ]; then
+        echo "Docker old image : $OLD_IMAGE_NO_LATEST"
+      fi
+
+      echo "Build Date : $(date)"
+      echo "======================================"
+      echo ""
+    } >> $FILE
+
+    echo "Updated build-images.txt"
+    cat $FILE
 
       # ==========================================
       # COMMIT CHANGES
