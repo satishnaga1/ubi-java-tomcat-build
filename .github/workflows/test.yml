@@ -1,4 +1,4 @@
-name: test
+name: Build and Push UBI Tomcat Image
 
 on:
   workflow_dispatch:
@@ -23,52 +23,89 @@ on:
         required: true
         default: "ubi-tomcat"
 
+env:
+  REGISTRY: docker.io
+  IMAGE_TAG: latest
+
 jobs:
 
+  # ==========================================
+  # START WORKFLOW
+  # ==========================================
   start:
+    name: Start Workflow
     runs-on: ubuntu-latest
-    steps:
-      - name: Start Workflow
-        run: echo "Workflow Started"
 
+    steps:
+      - name: Initialize Pipeline
+        run: |
+          echo "Starting Docker CI/CD Pipeline"
+
+  # ==========================================
+  # CHECKOUT SOURCE
+  # ==========================================
   checkout-source:
+    name: Checkout Source
     runs-on: ubuntu-latest
     needs: start
 
     steps:
-      - name: Checkout Source
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
+  # ==========================================
+  # DETECT TOMCAT VERSION
+  # ==========================================
   detect-tomcat:
+    name: Detect Tomcat Version
     runs-on: ubuntu-latest
     needs: checkout-source
 
     outputs:
-      tomcat_version: ${{ steps.detect.outputs.version }}
+      tomcat_version: ${{ steps.detect.outputs.tomcat_version }}
 
     steps:
       - name: Detect Latest Tomcat Version
         id: detect
+        shell: bash
         run: |
-          MAJOR=${{ github.event.inputs.tomcat_major }}
+          set -e
 
-          VERSION=$(curl -s https://downloads.apache.org/tomcat/tomcat-$MAJOR/ \
-            | grep -oP 'v\K[0-9]+\.[0-9]+\.[0-9]+' \
+          MAJOR="${{ github.event.inputs.tomcat_major }}"
+
+          VERSION=$(curl -fsSL https://downloads.apache.org/tomcat/tomcat-${MAJOR}/ \
+            | grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+' \
+            | sed 's/^v//' \
             | sort -V \
             | tail -1)
 
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if [ -z "$VERSION" ]; then
+            echo "Failed to detect Tomcat version"
+            exit 1
+          fi
 
+          echo "Detected Tomcat Version: $VERSION"
+
+          echo "tomcat_version=$VERSION" >> $GITHUB_OUTPUT
+
+  # ==========================================
+  # SET JAVA VERSION
+  # ==========================================
   set-java:
+    name: Configure Java
     runs-on: ubuntu-latest
     needs: detect-tomcat
 
     steps:
-      - name: Set Java Version
+      - name: Display Java Version
         run: |
           echo "Java Version: ${{ github.event.inputs.java_version }}"
 
+  # ==========================================
+  # DOCKER LOGIN
+  # ==========================================
   docker-login:
+    name: Docker Hub Login
     runs-on: ubuntu-latest
     needs: set-java
 
@@ -79,13 +116,36 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+  # ==========================================
+  # BUILD DOCKER IMAGE
+  # ==========================================
   build-image:
+    name: Build Docker Image
     runs-on: ubuntu-latest
-    needs: docker-login
+    needs:
+      - docker-login
+      - detect-tomcat
 
     steps:
-      - name: Checkout Source
+      - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Display Build Parameters
+        run: |
+          echo "UBI Version       : ${{ github.event.inputs.ubi_version }}"
+          echo "Tomcat Major      : ${{ github.event.inputs.tomcat_major }}"
+          echo "Tomcat Version    : ${{ needs.detect-tomcat.outputs.tomcat_version }}"
+          echo "Java Version      : ${{ github.event.inputs.java_version }}"
+          echo "Image Name        : ${{ github.event.inputs.image_name }}"
+
+      - name: Verify Tomcat Download URL
+        run: |
+          URL="https://archive.apache.org/dist/tomcat/tomcat-${{ github.event.inputs.tomcat_major }}/v${{ needs.detect-tomcat.outputs.tomcat_version }}/bin/apache-tomcat-${{ needs.detect-tomcat.outputs.tomcat_version }}.tar.gz"
+
+          echo "Testing URL:"
+          echo "$URL"
+
+          curl -I -f $URL
 
       - name: Build Docker Image
         run: |
@@ -96,9 +156,14 @@ jobs:
             --build-arg TOMCAT_MAJOR=${{ github.event.inputs.tomcat_major }} \
             --build-arg TOMCAT_VERSION=${{ needs.detect-tomcat.outputs.tomcat_version }} \
             --build-arg JAVA_VERSION=${{ github.event.inputs.java_version }} \
-            -t ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest .
+            -t ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:${{ env.IMAGE_TAG }} \
+            .
 
+  # ==========================================
+  # PUSH DOCKER IMAGE
+  # ==========================================
   push-image:
+    name: Push Docker Image
     runs-on: ubuntu-latest
     needs: build-image
 
@@ -106,12 +171,21 @@ jobs:
       - name: Push Docker Image
         run: |
           docker push \
-            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest
+            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:${{ env.IMAGE_TAG }}
 
+  # ==========================================
+  # COMPLETE WORKFLOW
+  # ==========================================
   complete:
+    name: Complete Pipeline
     runs-on: ubuntu-latest
     needs: push-image
 
     steps:
-      - name: Complete Workflow
-        run: echo "Docker Image Successfully Published"
+      - name: Pipeline Completed
+        run: |
+          echo "Docker Image Successfully Published"
+
+          echo ""
+          echo "Image:"
+          echo "${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:${{ env.IMAGE_TAG }}"
