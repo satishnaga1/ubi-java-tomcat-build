@@ -24,7 +24,7 @@ on:
         default: "ubi-tomcat"
 
 env:
-  REGISTRY: docker.io
+  
   IMAGE_TAG: latest
 
 jobs:
@@ -63,7 +63,7 @@ jobs:
             --> E[Docker Hub Login]
             --> F[Build Docker Image]
             --> G[Push Docker Image]
-            --> H([Docker Hub Registry])
+          
 
           ```
           EOF
@@ -198,8 +198,7 @@ jobs:
       - name: Push Docker Image
         run: |
           docker push \
-            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:${{ env.IMAGE_TAG }}
-
+            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest
   # ==========================================
   # COMPLETE WORKFLOW
   # ==========================================
