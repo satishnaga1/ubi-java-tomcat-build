@@ -1,4 +1,4 @@
-name: Build and Push UBI Tomcat Images
+name: Build and Push UBI Tomcat Image1
 
 on:
   workflow_dispatch:
