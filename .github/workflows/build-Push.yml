@@ -1,4 +1,4 @@
-name: test
+name: Build and update to github
 
 on:
   workflow_dispatch:
