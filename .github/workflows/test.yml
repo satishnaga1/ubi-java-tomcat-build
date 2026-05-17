@@ -1,4 +1,4 @@
-name: build
+name: Build
 
 on:
   workflow_dispatch:
@@ -9,12 +9,12 @@ on:
         default: "9"
 
       tomcat_major:
-        description: "Tomcat Major Version (9 or 10)"
+        description: "Tomcat Major Version"
         required: true
         default: "9"
 
       java_version:
-        description: "Java Version (11, 17, 21)"
+        description: "Java Version"
         required: true
         default: "17"
 
@@ -29,22 +29,41 @@ jobs:
   # START WORKFLOW
   # ==========================================
   start:
-    name: START WORKFLOW
+    name: Start Workflow
     runs-on: ubuntu-latest
 
     steps:
       - name: Initialize Pipeline
         run: |
-          echo "=================================="
-          echo "STARTING UBI TOMCAT BUILD PIPELINE"
-          echo "=================================="
+          echo "======================================"
+          echo "Starting Docker CI/CD Pipeline"
+          echo "======================================"
 
-          echo ""
-          echo "UBI Version      : ${{ github.event.inputs.ubi_version }}"
-          echo "Tomcat Major     : ${{ github.event.inputs.tomcat_major }}"
-          echo "Java Version     : ${{ github.event.inputs.java_version }}"
-          echo "Image Name       : ${{ github.event.inputs.image_name }}"
-          echo ""
+      # ==========================================
+      # VISUAL PIPELINE DIAGRAM
+      # ==========================================
+      - name: Display Workflow Diagram
+        run: |
+          cat <<'EOF' >> $GITHUB_STEP_SUMMARY
+          # UBI Tomcat Docker Build Workflow
+
+          ## CI/CD Pipeline Diagram
+
+          ```mermaid
+          flowchart LR
+
+            A([START])
+            --> B[Checkout Source]
+            --> C[Detect UBI Version]
+            --> D[Detect Tomcat Version]
+            --> E[Set Java Version]
+            --> F[Build Docker Image]
+            --> G[Docker Hub Login]
+            --> H[Push Docker Image]
+            --> I([COMPLETE])
+
+          ```
+          EOF
 
   # ==========================================
   # CHECKOUT SOURCE
@@ -57,6 +76,30 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+  # ==========================================
+  # DETECT UBI VERSION
+  # ==========================================
+  detect-ubi:
+    name: Detect UBI Version
+    runs-on: ubuntu-latest
+    needs: checkout-source
+
+    outputs:
+      ubi_version: ${{ steps.detect.outputs.ubi_version }}
+
+    steps:
+      - name: Detect UBI Version
+        id: detect
+        shell: bash
+        run: |
+          set -e
+
+          UBI_VERSION="${{ github.event.inputs.ubi_version }}"
+
+          echo "Detected UBI Version: $UBI_VERSION"
+
+          echo "ubi_version=$UBI_VERSION" >> $GITHUB_OUTPUT
 
   # ==========================================
   # DETECT TOMCAT VERSION
@@ -97,73 +140,89 @@ jobs:
   # SET JAVA VERSION
   # ==========================================
   set-java:
-    name: Set Java Version
+    name: Configure Java
     runs-on: ubuntu-latest
-    needs: detect-tomcat
+    needs:
+      - detect-ubi
+      - detect-tomcat
 
     steps:
-      - name: Configure Java
+      - name: Display Java Version
         run: |
           echo "Java Version: ${{ github.event.inputs.java_version }}"
 
   # ==========================================
-  # DOCKER HUB LOGIN
+  # BUILD AND PUSH DOCKER IMAGE
   # ==========================================
-  docker-login:
-    name: Docker Hub Login
-    runs-on: ubuntu-latest
-    needs: set-java
-
-    steps:
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-  # ==========================================
-  # BUILD DOCKER IMAGE
-  # ==========================================
-  build-image:
-    name: Build Docker Image
+  build-and-push:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
     needs:
-      - docker-login
+      - detect-ubi
       - detect-tomcat
+      - set-java
 
     steps:
+
+      # ==========================================
+      # CHECKOUT REPOSITORY
+      # ==========================================
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # ==========================================
+      # DISPLAY BUILD PARAMETERS
+      # ==========================================
       - name: Display Build Parameters
         run: |
-          echo "UBI Version       : ${{ github.event.inputs.ubi_version }}"
+          echo "======================================"
+          echo "BUILD PARAMETERS"
+          echo "======================================"
+
+          echo "UBI Version       : ${{ needs.detect-ubi.outputs.ubi_version }}"
           echo "Tomcat Major      : ${{ github.event.inputs.tomcat_major }}"
           echo "Tomcat Version    : ${{ needs.detect-tomcat.outputs.tomcat_version }}"
           echo "Java Version      : ${{ github.event.inputs.java_version }}"
           echo "Image Name        : ${{ github.event.inputs.image_name }}"
 
+      # ==========================================
+      # BUILD DOCKER IMAGE
+      # ==========================================
       - name: Build Docker Image
         run: |
           docker build \
             --progress=plain \
             --no-cache \
-            --build-arg UBI_VERSION=${{ github.event.inputs.ubi_version }} \
+            --build-arg UBI_VERSION=${{ needs.detect-ubi.outputs.ubi_version }} \
             --build-arg TOMCAT_MAJOR=${{ github.event.inputs.tomcat_major }} \
             --build-arg TOMCAT_VERSION=${{ needs.detect-tomcat.outputs.tomcat_version }} \
             --build-arg JAVA_VERSION=${{ github.event.inputs.java_version }} \
             -t ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest \
             .
 
-  # ==========================================
-  # PUSH DOCKER IMAGE
-  # ==========================================
-  push-image:
-    name: Push Docker Image
-    runs-on: ubuntu-latest
-    needs: build-image
+      # ==========================================
+      # VERIFY IMAGE
+      # ==========================================
+      - name: Verify Docker Image
+        run: |
+          echo "======================================"
+          echo "LOCAL DOCKER IMAGES"
+          echo "======================================"
 
-    steps:
+          docker images
+
+      # ==========================================
+      # LOGIN TO DOCKER HUB
+      # ==========================================
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # ==========================================
+      # PUSH DOCKER IMAGE
+      # ==========================================
       - name: Push Docker Image
         run: |
           docker push \
@@ -175,14 +234,14 @@ jobs:
   complete:
     name: COMPLETE WORKFLOW
     runs-on: ubuntu-latest
-    needs: push-image
+    needs: build-and-push
 
     steps:
       - name: Pipeline Completed
         run: |
-          echo "=================================="
+          echo "======================================"
           echo "DOCKER IMAGE SUCCESSFULLY PUSHED"
-          echo "=================================="
+          echo "======================================"
 
           echo ""
           echo "Docker Image:"
