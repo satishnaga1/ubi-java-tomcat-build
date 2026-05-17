@@ -5,18 +5,22 @@ on:
     inputs:
       ubi_version:
         description: "UBI Version"
+        required: true
         default: "9"
 
       tomcat_major:
         description: "Tomcat Major Version (9 or 10)"
+        required: true
         default: "9"
 
       java_version:
         description: "Java Version (11, 17, 21)"
+        required: true
         default: "17"
 
       image_name:
         description: "Docker Image Name"
+        required: true
         default: "ubi-tomcat"
 
 jobs:
@@ -24,30 +28,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      # Step 1 - Checkout Source Code
       - name: Checkout Source
         uses: actions/checkout@v4
 
+      # Step 2 - Detect Latest Tomcat Version
       - name: Detect Latest Tomcat Version
         run: |
           MAJOR=${{ github.event.inputs.tomcat_major }}
 
           VERSION=$(curl -s https://downloads.apache.org/tomcat/tomcat-$MAJOR/ \
             | grep -oP 'v\K[0-9]+\.[0-9]+\.[0-9]+' \
-            | head -1)
+            | sort -V \
+            | tail -1)
 
           echo "TOMCAT_VERSION=$VERSION" >> $GITHUB_ENV
           echo "TOMCAT_MAJOR=$MAJOR" >> $GITHUB_ENV
 
+          echo "Detected Tomcat Version: $VERSION"
+
+      # Step 3 - Set Java Version
       - name: Set Java Version
         run: |
           echo "JAVA_VERSION=${{ github.event.inputs.java_version }}" >> $GITHUB_ENV
 
+      # Step 4 - Docker Login
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      # Step 5 - Build Docker Image
       - name: Build Docker Image
         run: |
           docker build \
@@ -57,8 +70,48 @@ jobs:
             --build-arg TOMCAT_MAJOR=$TOMCAT_MAJOR \
             --build-arg TOMCAT_VERSION=$TOMCAT_VERSION \
             --build-arg JAVA_VERSION=$JAVA_VERSION \
-            -t ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest .
+            -t ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest \
+            .
 
+      # Step 6 - Push Docker Image
       - name: Push Docker Image
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest
+          docker push \
+            ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest
+
+      # Step 7 - Display Workflow Diagram
+      - name: Display Workflow Diagram
+        run: |
+          echo "# UBI Tomcat Docker Build Workflow" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Workflow Diagram" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "```mermaid" >> $GITHUB_STEP_SUMMARY
+          echo "flowchart LR" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "A[Manual Trigger]" >> $GITHUB_STEP_SUMMARY
+          echo "A --> B[Checkout Source]" >> $GITHUB_STEP_SUMMARY
+          echo "B --> C[Detect Tomcat Version]" >> $GITHUB_STEP_SUMMARY
+          echo "C --> D[Set Java Version]" >> $GITHUB_STEP_SUMMARY
+          echo "D --> E[Docker Hub Login]" >> $GITHUB_STEP_SUMMARY
+          echo "E --> F[Build Docker Image]" >> $GITHUB_STEP_SUMMARY
+          echo "F --> G[Push Docker Image]" >> $GITHUB_STEP_SUMMARY
+          echo "G --> H[Docker Hub Registry]" >> $GITHUB_STEP_SUMMARY
+
+          echo "```" >> $GITHUB_STEP_SUMMARY
+
+      # Step 8 - Build Information
+      - name: Build Summary
+        run: |
+          echo "## Build Information" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| UBI Version | ${{ github.event.inputs.ubi_version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tomcat Major | $TOMCAT_MAJOR |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tomcat Version | $TOMCAT_VERSION |" >> $GITHUB_STEP_SUMMARY
+          echo "| Java Version | $JAVA_VERSION |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image Name | ${{ github.event.inputs.image_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Repository | ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest |" >> $GITHUB_STEP_SUMMARY
