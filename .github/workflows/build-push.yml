@@ -29,11 +29,41 @@ jobs:
 
     steps:
 
-      # Step 1 - Checkout Source Code
+      # ==========================================
+      # Visual Workflow Diagram
+      # ==========================================
+      - name: Display Workflow Diagram
+        run: |
+          echo "# UBI Tomcat Docker Build Workflow" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## CI/CD Pipeline Diagram" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "```mermaid" >> $GITHUB_STEP_SUMMARY
+          echo "flowchart TD" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "A([Start Workflow])" >> $GITHUB_STEP_SUMMARY
+          echo "A --> B[Checkout Source]" >> $GITHUB_STEP_SUMMARY
+          echo "B --> C[Detect Tomcat Version]" >> $GITHUB_STEP_SUMMARY
+          echo "C --> D[Set Java Version]" >> $GITHUB_STEP_SUMMARY
+          echo "D --> E[Docker Hub Login]" >> $GITHUB_STEP_SUMMARY
+          echo "E --> F[Build Docker Image]" >> $GITHUB_STEP_SUMMARY
+          echo "F --> G[Push Docker Image]" >> $GITHUB_STEP_SUMMARY
+          echo "G --> H([Docker Hub Registry])" >> $GITHUB_STEP_SUMMARY
+
+          echo "```" >> $GITHUB_STEP_SUMMARY
+
+      # ==========================================
+      # Checkout Repository
+      # ==========================================
       - name: Checkout Source
         uses: actions/checkout@v4
 
-      # Step 2 - Detect Latest Tomcat Version
+      # ==========================================
+      # Detect Latest Tomcat Version
+      # ==========================================
       - name: Detect Latest Tomcat Version
         run: |
           MAJOR=${{ github.event.inputs.tomcat_major }}
@@ -48,19 +78,25 @@ jobs:
 
           echo "Detected Tomcat Version: $VERSION"
 
-      # Step 3 - Set Java Version
+      # ==========================================
+      # Set Java Version
+      # ==========================================
       - name: Set Java Version
         run: |
           echo "JAVA_VERSION=${{ github.event.inputs.java_version }}" >> $GITHUB_ENV
 
-      # Step 4 - Docker Login
+      # ==========================================
+      # Docker Hub Login
+      # ==========================================
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Step 5 - Build Docker Image
+      # ==========================================
+      # Build Docker Image
+      # ==========================================
       - name: Build Docker Image
         run: |
           docker build \
@@ -73,40 +109,23 @@ jobs:
             -t ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest \
             .
 
-      # Step 6 - Push Docker Image
+      # ==========================================
+      # Push Docker Image
+      # ==========================================
       - name: Push Docker Image
         run: |
           docker push \
             ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest
 
-      # Step 7 - Display Workflow Diagram
-      - name: Display Workflow Diagram
-        run: |
-          echo "# UBI Tomcat Docker Build Workflow" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Workflow Diagram" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "```mermaid" >> $GITHUB_STEP_SUMMARY
-          echo "flowchart LR" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "A[Manual Trigger]" >> $GITHUB_STEP_SUMMARY
-          echo "A --> B[Checkout Source]" >> $GITHUB_STEP_SUMMARY
-          echo "B --> C[Detect Tomcat Version]" >> $GITHUB_STEP_SUMMARY
-          echo "C --> D[Set Java Version]" >> $GITHUB_STEP_SUMMARY
-          echo "D --> E[Docker Hub Login]" >> $GITHUB_STEP_SUMMARY
-          echo "E --> F[Build Docker Image]" >> $GITHUB_STEP_SUMMARY
-          echo "F --> G[Push Docker Image]" >> $GITHUB_STEP_SUMMARY
-          echo "G --> H[Docker Hub Registry]" >> $GITHUB_STEP_SUMMARY
-
-          echo "```" >> $GITHUB_STEP_SUMMARY
-
-      # Step 8 - Build Information
+      # ==========================================
+      # Build Summary
+      # ==========================================
       - name: Build Summary
         run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Build Information" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| UBI Version | ${{ github.event.inputs.ubi_version }} |" >> $GITHUB_STEP_SUMMARY
