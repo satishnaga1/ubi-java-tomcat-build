@@ -1,4 +1,4 @@
-name: test
+name: build
 
 on:
   workflow_dispatch:
@@ -24,15 +24,16 @@ on:
         default: "ubi-tomcat"
 
 jobs:
-  build:
+
+  # ==========================================
+  # START WORKFLOW
+  # ==========================================
+  start:
+    name: START WORKFLOW
     runs-on: ubuntu-latest
 
     steps:
-
-      # ==========================================
-      # START WORKFLOW
-      # ==========================================
-      - name: START WORKFLOW
+      - name: Initialize Pipeline
         run: |
           echo "=================================="
           echo "STARTING UBI TOMCAT BUILD PIPELINE"
@@ -45,107 +46,144 @@ jobs:
           echo "Image Name       : ${{ github.event.inputs.image_name }}"
           echo ""
 
-      # ==========================================
-      # Visual Workflow Diagram
-      # ==========================================
-      - name: Display Workflow Diagram
-        run: |
-          cat <<'EOF' >> $GITHUB_STEP_SUMMARY
-          # UBI Tomcat Docker Build Workflow
+  # ==========================================
+  # CHECKOUT SOURCE
+  # ==========================================
+  checkout-source:
+    name: Checkout Source
+    runs-on: ubuntu-latest
+    needs: start
 
-          ## CI/CD Pipeline Diagram
-
-          ```mermaid
-          flowchart TD
-
-            A([START WORKFLOW])
-            --> B[Checkout Source]
-            --> C[Detect Tomcat Version]
-            --> D[Set Java Version]
-            --> E[Docker Hub Login]
-            --> F[Build Docker Image]
-            --> G[Push Docker Image]
-            --> H([Docker Hub Registry])
-
-          ```
-          EOF
-
-      # ==========================================
-      # Checkout Repository
-      # ==========================================
-      - name: Checkout Source
+    steps:
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # ==========================================
-      # Detect Latest Tomcat Version
-      # ==========================================
-      - name: Detect Latest Tomcat Version
-        run: |
-          MAJOR=${{ github.event.inputs.tomcat_major }}
+  # ==========================================
+  # DETECT TOMCAT VERSION
+  # ==========================================
+  detect-tomcat:
+    name: Detect Tomcat Version
+    runs-on: ubuntu-latest
+    needs: checkout-source
 
-          VERSION=$(curl -s https://downloads.apache.org/tomcat/tomcat-$MAJOR/ \
-            | grep -oP 'v\K[0-9]+\.[0-9]+\.[0-9]+' \
+    outputs:
+      tomcat_version: ${{ steps.detect.outputs.tomcat_version }}
+
+    steps:
+      - name: Detect Latest Tomcat Version
+        id: detect
+        shell: bash
+        run: |
+          set -e
+
+          MAJOR="${{ github.event.inputs.tomcat_major }}"
+
+          VERSION=$(curl -fsSL https://downloads.apache.org/tomcat/tomcat-${MAJOR}/ \
+            | grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+' \
+            | sed 's/^v//' \
             | sort -V \
             | tail -1)
 
-          echo "TOMCAT_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "TOMCAT_MAJOR=$MAJOR" >> $GITHUB_ENV
+          if [ -z "$VERSION" ]; then
+            echo "Failed to detect Tomcat version"
+            exit 1
+          fi
 
           echo "Detected Tomcat Version: $VERSION"
 
-      # ==========================================
-      # Set Java Version
-      # ==========================================
-      - name: Set Java Version
-        run: |
-          echo "JAVA_VERSION=${{ github.event.inputs.java_version }}" >> $GITHUB_ENV
+          echo "tomcat_version=$VERSION" >> $GITHUB_OUTPUT
 
-      # ==========================================
-      # Docker Hub Login
-      # ==========================================
+  # ==========================================
+  # SET JAVA VERSION
+  # ==========================================
+  set-java:
+    name: Set Java Version
+    runs-on: ubuntu-latest
+    needs: detect-tomcat
+
+    steps:
+      - name: Configure Java
+        run: |
+          echo "Java Version: ${{ github.event.inputs.java_version }}"
+
+  # ==========================================
+  # DOCKER HUB LOGIN
+  # ==========================================
+  docker-login:
+    name: Docker Hub Login
+    runs-on: ubuntu-latest
+    needs: set-java
+
+    steps:
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # ==========================================
-      # Build Docker Image
-      # ==========================================
+  # ==========================================
+  # BUILD DOCKER IMAGE
+  # ==========================================
+  build-image:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs:
+      - docker-login
+      - detect-tomcat
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Display Build Parameters
+        run: |
+          echo "UBI Version       : ${{ github.event.inputs.ubi_version }}"
+          echo "Tomcat Major      : ${{ github.event.inputs.tomcat_major }}"
+          echo "Tomcat Version    : ${{ needs.detect-tomcat.outputs.tomcat_version }}"
+          echo "Java Version      : ${{ github.event.inputs.java_version }}"
+          echo "Image Name        : ${{ github.event.inputs.image_name }}"
+
       - name: Build Docker Image
         run: |
           docker build \
             --progress=plain \
             --no-cache \
             --build-arg UBI_VERSION=${{ github.event.inputs.ubi_version }} \
-            --build-arg TOMCAT_MAJOR=$TOMCAT_MAJOR \
-            --build-arg TOMCAT_VERSION=$TOMCAT_VERSION \
-            --build-arg JAVA_VERSION=$JAVA_VERSION \
+            --build-arg TOMCAT_MAJOR=${{ github.event.inputs.tomcat_major }} \
+            --build-arg TOMCAT_VERSION=${{ needs.detect-tomcat.outputs.tomcat_version }} \
+            --build-arg JAVA_VERSION=${{ github.event.inputs.java_version }} \
             -t ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest \
             .
 
-      # ==========================================
-      # Push Docker Image
-      # ==========================================
+  # ==========================================
+  # PUSH DOCKER IMAGE
+  # ==========================================
+  push-image:
+    name: Push Docker Image
+    runs-on: ubuntu-latest
+    needs: build-image
+
+    steps:
       - name: Push Docker Image
         run: |
           docker push \
             ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest
 
-      # ==========================================
-      # Build Summary
-      # ==========================================
-      - name: Build Summary
-        run: |
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Build Information" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+  # ==========================================
+  # COMPLETE WORKFLOW
+  # ==========================================
+  complete:
+    name: COMPLETE WORKFLOW
+    runs-on: ubuntu-latest
+    needs: push-image
 
-          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| UBI Version | ${{ github.event.inputs.ubi_version }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Tomcat Major | $TOMCAT_MAJOR |" >> $GITHUB_STEP_SUMMARY
-          echo "| Tomcat Version | $TOMCAT_VERSION |" >> $GITHUB_STEP_SUMMARY
-          echo "| Java Version | $JAVA_VERSION |" >> $GITHUB_STEP_SUMMARY
-          echo "| Image Name | ${{ github.event.inputs.image_name }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Docker Repository | ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest |" >> $GITHUB_STEP_SUMMARY
+    steps:
+      - name: Pipeline Completed
+        run: |
+          echo "=================================="
+          echo "DOCKER IMAGE SUCCESSFULLY PUSHED"
+          echo "=================================="
+
+          echo ""
+          echo "Docker Image:"
+          echo "${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest"
