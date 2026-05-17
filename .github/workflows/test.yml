@@ -32,6 +32,8 @@ jobs:
   # ==========================================
   # START WORKFLOW
   # ==========================================
+
+  
   start:
     name: Start Workflow
     runs-on: ubuntu-latest
@@ -40,6 +42,31 @@ jobs:
       - name: Initialize Pipeline
         run: |
           echo "Starting Docker CI/CD Pipeline"
+
+  #==========================================
+  ## VISUAL PIPELINE DIAGRAM
+  #=========================================
+      - name: Display Workflow Diagram
+        run: |
+          cat <<'EOF' >> $GITHUB_STEP_SUMMARY
+          # UBI Tomcat Docker Build Workflow
+
+          ## CI/CD Pipeline Diagram
+
+          ```mermaid
+          flowchart LR
+
+            A([START])
+            --> B[Checkout Source]
+            --> C[Detect Tomcat Version]
+            --> D[Set Java Version]
+            --> E[Docker Hub Login]
+            --> F[Build Docker Image]
+            --> G[Push Docker Image]
+            --> H([Docker Hub Registry])
+
+          ```
+          EOF
 
   # ==========================================
   # CHECKOUT SOURCE
