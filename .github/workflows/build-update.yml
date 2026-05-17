@@ -273,12 +273,29 @@ jobs:
 
           mkdir -p configuration/tomcat
 
-          echo "" >> $FILE
-          echo "$IMAGE_TAG" >> $FILE
-          echo "Docker Image : ${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest" >> $FILE
-          echo "" >> $FILE
+          IMAGE_TAG="ubi${{ needs.detect-ubi.outputs.ubi_version }}-java${{ github.event.inputs.java_version }}-tomcat${{ github.event.inputs.tomcat_major }}"
 
-          echo "Updated File:"
+          NEW_IMAGE="${{ secrets.DOCKER_USERNAME }}/${{ github.event.inputs.image_name }}:latest"
+
+          OLD_IMAGE=$(grep "Docker Image :" $FILE 2>/dev/null | tail -1 | sed 's/Docker Image : //')
+
+          {
+            echo ""
+            echo "======================================"
+            echo "$IMAGE_TAG"
+            echo "Docker Image : $NEW_IMAGE"
+
+            if [ ! -z "$OLD_IMAGE" ]; then
+              echo "Docker old image : $OLD_IMAGE"
+            fi
+
+            echo "Build Date : $(date)"
+            echo "======================================"
+            echo ""
+          } >> $FILE
+
+          echo "Updated build-images.txt"
+
           cat $FILE
 
       # ==========================================
