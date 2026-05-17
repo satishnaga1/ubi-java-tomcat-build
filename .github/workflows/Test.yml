@@ -202,9 +202,9 @@ jobs:
 
       - name: Run Update Image Script
         run: |
-          chmod +x .github/workflows/ubi-java-tomcat-build/git-update/update-image.sh
+          chmod +x update/update-image.sh
 
-          .github/workflows/ubi-java-tomcat-build/git-update/update-image.sh
+           ./update/update-image.sh
         env:
           UBI_VERSION: ${{ needs.detect-ubi.outputs.ubi_version }}
           JAVA_VERSION: ${{ github.event.inputs.java_version }}
